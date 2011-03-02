@@ -1,8 +1,8 @@
 require File.dirname(__FILE__) + '/abstract_unit'
 
-class TimeTest < Test::Unit::TestCase
+class TimeTest < ActiveRecord::TestCase
   def test_valid_when_nil
-    assert p.update_attributes!(:time_of_birth => nil, :time_of_death => nil, :time_of_death => nil)
+    assert person.update_attributes!(:time_of_birth => nil, :time_of_death => nil, :time_of_death => nil)
   end
   
   def test_with_seconds
@@ -31,10 +31,10 @@ class TimeTest < Test::Unit::TestCase
   
   def test_24_hour_with_microseconds
     assert_update_and_match /12:23:56/, :time_of_birth => "12:23:56.169732"
-    assert_equal 169732, p.time_of_birth.usec
+    assert_equal 169732, person.time_of_birth.usec
     
     assert_update_and_match /12:23:56/, :time_of_birth => "12:23:56.15"
-    assert_equal 15, p.time_of_birth.usec
+    assert_equal 15, person.time_of_birth.usec
   end
   
   def test_iso8601
@@ -53,51 +53,51 @@ class TimeTest < Test::Unit::TestCase
   
   def test_invalid_formats
     ['1 PPM', 'lunchtime', '8..30', 'chocolate', '29am', '18:20 AM', '18:20 PM', 2].each do |value|
-      assert !p.update_attributes(:time_of_birth => value)
+      assert !person.update_attributes(:time_of_birth => value)
     end
-    assert_match /time/, p.errors[:time_of_birth]
+    assert_match /time/, person.errors[:time_of_birth].to_s
   end
   
   def test_after
     assert_invalid_and_errors_match /must be after/, :time_of_death => '6pm'
     
-    assert p.update_attributes!(:time_of_death => '8pm')
-    assert p.update_attributes!(:time_of_death => nil, :time_of_birth => Time.gm(2001, 1, 1, 9))
+    assert person.update_attributes!(:time_of_death => '8pm')
+    assert person.update_attributes!(:time_of_death => nil, :time_of_birth => Time.gm(2001, 1, 1, 9))
     
     assert_invalid_and_errors_match /must be after/, :time_of_death => '7am'
   end
   
   def test_before
     assert_invalid_and_errors_match /must be before/, :time_of_birth => Time.now + 1.day
-    assert p.update_attributes!(:time_of_birth => Time.now - 1)
+    assert person.update_attributes!(:time_of_birth => Time.now - 1)
   end
   
   def test_blank
-    assert p.update_attributes!(:time_of_birth => " ")
-    assert_nil p.time_of_birth
+    assert person.update_attributes!(:time_of_birth => " ")
+    assert_nil person.time_of_birth
   end
   
   def test_multi_parameter_attribute_assignment_with_valid_time
     assert_nothing_raised do
-      p.update_attributes!('time_of_birth(1i)' => '3', 'time_of_birth(2i)' => '2', 'time_of_birth(3i)' => '10')
+      person.update_attributes!('time_of_birth(1i)' => '3', 'time_of_birth(2i)' => '2', 'time_of_birth(3i)' => '10')
     end
     
-    assert_equal Time.local(2000, 1, 1, 3, 2, 10), p.time_of_birth
+    assert_equal Time.local(2000, 1, 1, 3, 2, 10), person.time_of_birth
   end
   
   def test_multi_parameter_attribute_assignment_with_invalid_time
     assert_nothing_raised do
-      assert !p.update_attributes('time_of_birth(1i)' => '23', 'time_of_birth(2i)' => '2', 'time_of_birth(3i)' => '77')
+      assert !person.update_attributes('time_of_birth(1i)' => '23', 'time_of_birth(2i)' => '2', 'time_of_birth(3i)' => '77')
     end
     
-    assert p.errors[:time_of_birth]
+    assert person.errors[:time_of_birth]
   end
   
   def test_incomplete_multi_parameter_attribute_assignment
     assert_nothing_raised do
-      assert !p.update_attributes('time_of_birth(1i)' => '10')
+      assert !person.update_attributes('time_of_birth(1i)' => '10')
     end
     
-    assert p.errors[:time_of_birth]
+    assert person.errors[:time_of_birth]
   end
 end
