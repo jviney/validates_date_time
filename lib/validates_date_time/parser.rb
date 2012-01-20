@@ -1,41 +1,62 @@
-require "active_record/connection_adapters/abstract/schema_definitions"
+require "active_record/connection_adapters/column"
 
 class ActiveRecord::ConnectionAdapters::Column
   class << self
-    def string_to_date(value)
-      return if value.blank?
+    # The string_to_* methods have been changed to not return nil
+    # if a string is not passed. Instead the fallback_string_to_*
+    # methods will try to convert the object appropriately.
+    def string_to_date(string)
+      return nil if string.blank?
+
+      fast_string_to_date(string) || fallback_string_to_date(string)
+    end
+
+    def string_to_time(string)
+      return nil if string.blank?
+
+      fast_string_to_time(string) || fallback_string_to_time(string)
+    end
+
+    def string_to_dummy_time(string)
+      return nil if string.blank?
+
+      fallback_string_to_dummy_time(string)
+    end
+
+    protected
+
+    def fallback_string_to_date(value)
       return value if value.is_a?(Date)
       return value.to_date if value.is_a?(Time) || value.is_a?(DateTime)
-    
+
       year, month, day = case value.to_s.strip
-        # 22/1/06, 22\1\06 or 22.1.06
-        when /\A(\d{1,2})[\\\/\.-](\d{1,2})[\\\/\.-](\d{2}|\d{4})\Z/
-          ValidatesDateTime.us_date_format ? [$3, $1, $2] : [$3, $2, $1]
-        # 22 Feb 06 or 1 jun 2001
-        when /\A(\d{1,2}) (\w{3,9}) (\d{2}|\d{4})\Z/
-          [$3, $2, $1]
-        # July 1 2005
-        when /\A(\w{3,9}) (\d{1,2})\,? (\d{2}|\d{4})\Z/
-          [$3, $1, $2]
-        # 2006-01-01
-        when /\A(\d{4})-(\d{2})-(\d{2})\Z/
-          [$1, $2, $3]
-        # 2006-01-01T10:10:10+13:00
-        when /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\Z/
-          [$1, $2, $3]
-        # Not a valid date string
-        else
-          return nil
+      # 22/1/06, 22\1\06 or 22.1.06
+      when /\A(\d{1,2})[\\\/\.-](\d{1,2})[\\\/\.-](\d{2}|\d{4})\Z/
+        ValidatesDateTime.us_date_format ? [$3, $1, $2] : [$3, $2, $1]
+      # 22 Feb 06 or 1 jun 2001
+      when /\A(\d{1,2}) (\w{3,9}) (\d{2}|\d{4})\Z/
+        [$3, $2, $1]
+      # July 1 2005
+      when /\A(\w{3,9}) (\d{1,2})\,? (\d{2}|\d{4})\Z/
+        [$3, $1, $2]
+      # 2006-01-01
+      when /\A(\d{4})-(\d{2})-(\d{2})\Z/
+        [$1, $2, $3]
+      # 2006-01-01T10:10:10+13:00
+      when /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\Z/
+        [$1, $2, $3]
+      # Not a valid date string
+      else
+        return nil
       end
-    
-      Date.new(unambiguous_year(year), month_index(month), day.to_i) rescue nil
+
+      new_date(unambiguous_year(year), month_index(month), day.to_i)
     end
-  
-    def string_to_dummy_time(value)
-      return if value.blank?
+
+    def fallback_string_to_dummy_time(value)
       return value if value.is_a?(Time) || value.is_a?(DateTime)
       return value.to_time(ActiveRecord::Base.default_timezone) if value.is_a?(Date)
-    
+
       hour, minute, second, microsecond = case value.to_s.strip
         # 12 hours with minute and second
         when /\A(\d{1,2})[\. :](\d{2})[\. :](\d{2})\s?(am|pm)\Z/i
@@ -57,49 +78,42 @@ class ActiveRecord::ConnectionAdapters::Column
         else
           return nil
       end
-    
-      Time.send(ActiveRecord::Base.default_timezone, 2000, 1, 1, hour.to_i, minute.to_i, second.to_i, microsecond.to_i) rescue nil
+
+      new_time(2000, 1, 1, hour.to_i, minute.to_i, second.to_i, microsecond.to_i)
     end
-  
-    def string_to_time(value)
-      return if value.blank?
+
+    def fallback_string_to_time(value)
       return value if value.is_a?(Time) || value.is_a?(DateTime)
       return value.to_time(ActiveRecord::Base.default_timezone) if value.is_a?(Date)
-    
+
       value = value.to_s.strip
-    
+
       if value =~ /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\Z/
         time_array = [$1, $2, $3, $4, $5, $6].map!(&:to_i)
+        time_array << nil # usec
       else
         # The basic approach is to attempt to parse a date from the front of the string, splitting on spaces.
         # Once a date has been parsed, a time is extracted from the rest of the string.
         split_index = date = nil
         loop do
           split_index = value.index(' ', split_index ? split_index + 1 : 0)
-        
+
           if split_index.nil? or date = string_to_date(value.first(split_index))
             break
           end
         end
-      
+
         return if date.nil?
-      
+
         time = string_to_dummy_time(value.last(value.size - split_index))
         return if time.nil?
-      
+
         time_array = [date.year, date.month, date.day, time.hour, time.min, time.sec, time.usec]
       end
-    
-      # From schema_definitions.rb
-      begin
-        Time.send(ActiveRecord::Base.default_timezone, *time_array)
-      rescue
-        zone_offset = if Base.default_timezone == :local then DateTime.now.offset else 0 end
-        # Append zero calendar reform start to account for dates skipped by calendar reform
-        DateTime.new(*time_array[0..5] << zone_offset << 0) rescue nil
-      end
+
+      new_time(*time_array)
     end
-  
+
     def full_hour(hour, meridian)
       hour = hour.to_i
       if meridian.strip.downcase == 'am'
@@ -108,12 +122,12 @@ class ActiveRecord::ConnectionAdapters::Column
         hour == 12 ? hour : hour + 12
       end
     end
-  
+
     def month_index(month)
       return month.to_i if month.to_i.nonzero?
       Date::ABBR_MONTHNAMES.index(month.capitalize) || Date::MONTHNAMES.index(month.capitalize)
     end
-  
+
     # Extract a 4-digit year from a 2-digit year.
     # If the number is less than 20, assume year 20#{number}
     # otherwise use 19#{number}. Ignore if already 4 digits.
