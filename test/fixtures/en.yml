@@ -10,3 +10,8 @@ en:
             date_of_death:
               after: 'i18n_after {{value}}'
               before: 'i18n_before {{value}}'
+  errors:
+    messages:
+      date: "i18n_date"
+      dummy_time: "i18n_dummy_time"
+      time: "i18n_time"
