@@ -16,7 +16,7 @@ class Person < ActiveRecord::Base
   validates_date :date_of_birth, :allow_blank => true
   validates_date :date_of_death, :allow_blank => true, :before => lambda { Date.current + 1.day }, :after => :date_of_birth
 
-  validates_date :date_of_arrival, :allow_blank => true, :before => :date_of_departure, :after => '1 Jan 1800', :before_message => "avant %s", :after_message => "apres %s"
+  validates_date :date_of_arrival, :allow_blank => true, :before => :date_of_departure, :after => '1 Jan 1800', :before_message => "avant %s", :after_message => "apres %s", :message => "malfaisance"
 
   validates_time :time_of_birth, :allow_blank => true, :before => [lambda { Time.now }]
   validates_time :time_of_death, :allow_blank => true, :after => [:time_of_birth, '7pm'], :before => [lambda { 10.years.from_now }]

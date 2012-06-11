@@ -51,6 +51,24 @@ class DateTest < ActiveRecord::TestCase
     end
   end
 
+  def test_invalid_format_with_custom_message
+    assert_invalid_and_errors_match /malfaisance/, :date_of_arrival => 'moo'
+  end
+
+  def test_invalid_format_with_i18n
+    original_load_path = I18n.load_path
+
+    I18n.load_path = [File.join(File.dirname(__FILE__),'fixtures/en.yml')]
+    I18n.reload!
+
+    assert_invalid_and_errors_match /i18n_date/, :date_of_birth => 'moo'
+    assert_invalid_and_errors_match /i18n_dummy_time/, :time_of_birth => 'moo'
+    assert_invalid_and_errors_match /i18n_time/, :date_and_time_of_birth => 'moo'
+  ensure
+    I18n.load_path = original_load_path
+    I18n.reload!
+  end
+
   def test_date_objects
     assert_update_and_equal '1963-04-05', :date_of_birth => Date.new(1963, 4, 5)
   end
