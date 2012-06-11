@@ -1,13 +1,6 @@
 module ValidatesDateTime
   class TemporalValidator < ActiveModel::EachValidator
-    class_attribute :default_options
-    self.default_options = {
-      :before_message => "must be before %s",
-      :after_message  => "must be after %s"
-    }.freeze
-
     def initialize(options)
-      options = options.reverse_merge(self.class.default_options)
       options.assert_valid_keys :attributes, :message, :before_message, :after_message, :before, :after, :if, :on, :allow_blank, :_parse_method
 
       # We must remove this from the configuration that is passed to validates_each because
@@ -28,7 +21,9 @@ module ValidatesDateTime
 
       # A value that is unable to be parsed, and a blank value where allow_blank is not set are both invalid
       if (raw_value.present? and !value.is_a?(column.klass)) or (raw_value.blank? and !@allow_blank)
-        record.errors.add(attribute, @options[:message])
+        error_message = options[:message] || options[:_parse_method]
+
+        record.errors.add(attribute, options[:_parse_method], options.merge(:message => error_message))
       elsif value
         validate_before_and_after_restrictions(record, attribute, value)
       end
@@ -38,14 +33,18 @@ module ValidatesDateTime
       def validate_before_and_after_restrictions(record, attr_name, value)
         Array.wrap(@options[:before]).each do |r|
           if r.value(record) and value >= r.last_value
-            record.errors.add(attr_name, :before, :value => r, :message => @options[:before_message] % r)
+            error_message = options[:before_message] || :before
+
+            record.errors.add(attr_name, :before, options.merge(:message => error_message, :value => r))
             break
           end
         end
 
         Array.wrap(@options[:after]).each do |r|
           if r.value(record) and value <= r.last_value
-            record.errors.add(attr_name, :after, :value => r, :message => @options[:after_message] % r)
+            error_message = options[:after_message] || :after
+
+            record.errors.add(attr_name, :after, options.merge(:message => error_message, :value => r))
             break
           end
         end
